@@ -46,7 +46,8 @@ func (c *Iterator) Node() *Node {
 //
 // It is immutable once constructed with Builder.
 type Root struct {
-	nodes []Node
+	nodes    []Node
+	comments []Range
 }
 
 // Iterator over the top level nodes.

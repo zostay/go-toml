@@ -23,7 +23,12 @@ func (b *Builder) NodeAt(ref Reference) *Node {
 
 func (b *Builder) Reset() {
 	b.tree.nodes = b.tree.nodes[:0]
+	b.tree.comments = b.tree.comments[:0]
 	b.lastIdx = 0
+}
+
+func (b *Builder) PushComment(c Range) {
+	b.tree.comments = append(b.tree.comments, c)
 }
 
 func (b *Builder) Push(n Node) Reference {

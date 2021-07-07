@@ -8,6 +8,9 @@ import (
 )
 
 type parser struct {
+	// When true, also emit comments locations
+	Comments bool
+
 	builder ast.Builder
 	ref     ast.Reference
 	data    []byte
@@ -93,6 +96,14 @@ func (p *parser) parseNewline(b []byte) ([]byte, error) {
 	return nil, newDecodeError(b[0:1], "expected newline but got %#U", b[0])
 }
 
+func (p *parser) parseComment(b []byte) []byte {
+	c, rest := scanComment(b)
+	if p.Comments {
+		p.builder.PushComment(p.Range(c))
+	}
+	return rest
+}
+
 func (p *parser) parseExpression(b []byte) (ast.Reference, []byte, error) {
 	// expression =  ws [ comment ]
 	// expression =/ ws keyval ws [ comment ]
@@ -106,7 +117,7 @@ func (p *parser) parseExpression(b []byte) (ast.Reference, []byte, error) {
 	}
 
 	if b[0] == '#' {
-		_, rest := scanComment(b)
+		rest := p.parseComment(b)
 
 		return ref, rest, nil
 	}
@@ -129,7 +140,7 @@ func (p *parser) parseExpression(b []byte) (ast.Reference, []byte, error) {
 	b = p.parseWhitespace(b)
 
 	if len(b) > 0 && b[0] == '#' {
-		_, rest := scanComment(b)
+		rest := p.parseComment(b)
 
 		return ref, rest, nil
 	}
@@ -478,7 +489,7 @@ func (p *parser) parseOptionalWhitespaceCommentNewline(b []byte) ([]byte, error)
 		b = p.parseWhitespace(b)
 
 		if len(b) > 0 && b[0] == '#' {
-			_, b = scanComment(b)
+			b = p.parseComment(b)
 		}
 
 		if len(b) == 0 {
