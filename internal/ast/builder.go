@@ -21,6 +21,10 @@ func (b *Builder) NodeAt(ref Reference) *Node {
 	return b.tree.at(ref)
 }
 
+func (b *Builder) Comments() []Range {
+	return b.tree.comments
+}
+
 func (b *Builder) Reset() {
 	b.tree.nodes = b.tree.nodes[:0]
 	b.tree.comments = b.tree.comments[:0]

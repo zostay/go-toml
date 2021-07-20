@@ -79,6 +79,10 @@ func (p *parser) Expression() *ast.Node {
 	return p.builder.NodeAt(p.ref)
 }
 
+func (p *parser) ExpressionComments() []ast.Range {
+	return p.builder.Comments()
+}
+
 func (p *parser) Error() error {
 	return p.err
 }
