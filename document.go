@@ -22,38 +22,53 @@ func Parse(b []byte) (Document, error) {
 
 	for p.NextExpression() {
 		expr := p.Expression()
-		switch expr.Kind {
-		case ast.KeyValue:
-			e := &KeyValue{}
-
-			// Handle key
-			k := expr.Key()
-			// TODO: this assumes just one element in the key
-			for k.Next() {
-				e.K = string(k.Node().Data)
-			}
-
-			// Handle value
-			v := expr.Value()
-			var err error
-			e.V, err = entityFromTerminalNode(v)
-			if err != nil {
-				return d, err
-			}
-
-			d.Root = append(d.Root, e)
-		default:
-			panic(fmt.Errorf("unhandled node kind %s", expr.Kind))
+		e, err := entityFromRootExpression(expr)
+		if err != nil {
+			return d, err
 		}
+		d.Root = append(d.Root, e)
 	}
 
 	return d, p.Error()
 }
 
-func entityFromTerminalNode(n *ast.Node) (Entity, error) {
-	switch n.Kind {
+// TODO: need more finesse than this to conserve the different kind of keys.
+func keyIteratorToStrings(it ast.Iterator) []string {
+	key := []string{}
+	for it.Next() {
+		key = append(key, string(it.Node().Data))
+	}
+	return key
+}
+
+func entityFromRootExpression(e *ast.Node) (Entity, error) {
+	switch e.Kind {
+	case ast.Table:
+		key := keyIteratorToStrings(e.Key())
+		return &Table{
+			Key: key,
+		}, nil
+	case ast.KeyValue:
+		key := keyIteratorToStrings(e.Key())
+
+		v, err := entityFromExpression(e.Value())
+		if err != nil {
+			return nil, err
+		}
+
+		return &KeyValue{
+			Key:   key,
+			Value: v,
+		}, nil
+	default:
+		panic(fmt.Errorf("unhandled root expression kind %s", e.Kind))
+	}
+}
+
+func entityFromExpression(e *ast.Node) (Entity, error) {
+	switch e.Kind {
 	case ast.Integer:
-		v, err := parseInteger(n.Data)
+		v, err := parseInteger(e.Data)
 		if err != nil {
 			return nil, err
 		}
@@ -62,10 +77,10 @@ func entityFromTerminalNode(n *ast.Node) (Entity, error) {
 		}, nil
 	case ast.String:
 		return &String{
-			Value: string(n.Data),
+			Value: string(e.Data),
 		}, nil
 	default:
-		panic(fmt.Errorf("unhandled node kind %s", n.Kind))
+		panic(fmt.Errorf("unhandled expression kind %s", e.Kind))
 	}
 }
 
@@ -88,15 +103,15 @@ type Comment struct {
 }
 
 type Table struct {
-	Implicit bool
-	K        string
+	Inline bool
+	Key    []string
 }
 
 type KeyValue struct {
 	C *Comment
 
-	K string
-	V Entity // V is one of the terminal type
+	Key   []string
+	Value Entity
 }
 
 type String struct {
