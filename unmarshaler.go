@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/pelletier/go-toml/v2/internal/ast"
+	"github.com/pelletier/go-toml/v2/internal/codec"
+	"github.com/pelletier/go-toml/v2/internal/parser"
 	"github.com/pelletier/go-toml/v2/internal/tracker"
 )
 
@@ -20,7 +22,7 @@ import (
 //
 // It is a shortcut for Decoder.Decode() with the default options.
 func Unmarshal(data []byte, v interface{}) error {
-	p := parser{}
+	p := parser.Parser{}
 	p.Reset(data)
 	d := decoder{p: &p}
 
@@ -92,7 +94,7 @@ func (d *Decoder) Decode(v interface{}) error {
 		return fmt.Errorf("toml: %w", err)
 	}
 
-	p := parser{}
+	p := parser.Parser{}
 	p.Reset(b)
 	dec := decoder{
 		p: &p,
@@ -106,7 +108,7 @@ func (d *Decoder) Decode(v interface{}) error {
 
 type decoder struct {
 	// Which parser instance in use for this decoding session.
-	p *parser
+	p *parser.Parser
 
 	// Flag indicating that the current expression is stashed.
 	// If set to true, calling nextExpr will not actually pull a new expression
@@ -176,12 +178,12 @@ func (d *decoder) FromParser(v interface{}) error {
 
 	err := d.fromParser(r.Elem())
 	if err == nil {
-		return d.strict.Error(d.p.data)
+		return d.strict.Error(d.p.Data)
 	}
 
-	var e *decodeError
+	var e *parser.DecodeError
 	if errors.As(err, &e) {
-		return wrapDecodeError(d.p.data, e)
+		return wrapDecodeError(d.p.Data, e)
 	}
 
 	return err
@@ -559,7 +561,7 @@ func (d *decoder) tryTextUnmarshaler(node *ast.Node, v reflect.Value) (bool, err
 	if v.CanAddr() && v.Addr().Type().Implements(textUnmarshalerType) {
 		err := v.Addr().Interface().(encoding.TextUnmarshaler).UnmarshalText(node.Data)
 		if err != nil {
-			return false, newDecodeError(d.p.Raw(node.Raw), "error calling UnmarshalText: %w", err)
+			return false, parser.NewDecodeError(d.p.Raw(node.Raw), "error calling UnmarshalText: %w", err)
 		}
 
 		return true, nil
@@ -692,7 +694,7 @@ func (d *decoder) unmarshalInlineTable(itable *ast.Node, v reflect.Value) error 
 		}
 		return d.unmarshalInlineTable(itable, elem)
 	default:
-		return newDecodeError(itable.Data, "cannot store inline table in Go type %s", v.Kind())
+		return parser.NewDecodeError(itable.Data, "cannot store inline table in Go type %s", v.Kind())
 	}
 
 	it := itable.Children()
@@ -712,7 +714,7 @@ func (d *decoder) unmarshalInlineTable(itable *ast.Node, v reflect.Value) error 
 }
 
 func (d *decoder) unmarshalDateTime(value *ast.Node, v reflect.Value) error {
-	dt, err := parseDateTime(value.Data)
+	dt, err := darseDateTime(value.Data)
 	if err != nil {
 		return err
 	}
@@ -722,7 +724,7 @@ func (d *decoder) unmarshalDateTime(value *ast.Node, v reflect.Value) error {
 }
 
 func (d *decoder) unmarshalLocalDate(value *ast.Node, v reflect.Value) error {
-	ld, err := parseLocalDate(value.Data)
+	ld, err := decodeLocalDate(value.Data)
 	if err != nil {
 		return err
 	}
@@ -739,13 +741,13 @@ func (d *decoder) unmarshalLocalDate(value *ast.Node, v reflect.Value) error {
 }
 
 func (d *decoder) unmarshalLocalTime(value *ast.Node, v reflect.Value) error {
-	lt, rest, err := parseLocalTime(value.Data)
+	lt, rest, err := decodeLocalTime(value.Data)
 	if err != nil {
 		return err
 	}
 
 	if len(rest) > 0 {
-		return newDecodeError(rest, "extra characters at the end of a local time")
+		return parser.NewDecodeError(rest, "extra characters at the end of a local time")
 	}
 
 	v.Set(reflect.ValueOf(lt))
@@ -753,13 +755,13 @@ func (d *decoder) unmarshalLocalTime(value *ast.Node, v reflect.Value) error {
 }
 
 func (d *decoder) unmarshalLocalDateTime(value *ast.Node, v reflect.Value) error {
-	ldt, rest, err := parseLocalDateTime(value.Data)
+	ldt, rest, err := decodeLocalDateTime(value.Data)
 	if err != nil {
 		return err
 	}
 
 	if len(rest) > 0 {
-		return newDecodeError(rest, "extra characters at the end of a local date time")
+		return parser.NewDecodeError(rest, "extra characters at the end of a local date time")
 	}
 
 	if v.Type() == timeType {
@@ -783,14 +785,14 @@ func (d *decoder) unmarshalBool(value *ast.Node, v reflect.Value) error {
 	case reflect.Interface:
 		v.Set(reflect.ValueOf(b))
 	default:
-		return newDecodeError(value.Data, "cannot assign boolean to a %t", b)
+		return parser.NewDecodeError(value.Data, "cannot assign boolean to a %t", b)
 	}
 
 	return nil
 }
 
 func (d *decoder) unmarshalFloat(value *ast.Node, v reflect.Value) error {
-	f, err := parseFloat(value.Data)
+	f, err := codec.DecodeFloat(value.Data)
 	if err != nil {
 		return err
 	}
@@ -800,13 +802,13 @@ func (d *decoder) unmarshalFloat(value *ast.Node, v reflect.Value) error {
 		v.SetFloat(f)
 	case reflect.Float32:
 		if f > math.MaxFloat32 {
-			return newDecodeError(value.Data, "number %f does not fit in a float32", f)
+			return parser.NewDecodeError(value.Data, "number %f does not fit in a float32", f)
 		}
 		v.SetFloat(f)
 	case reflect.Interface:
 		v.Set(reflect.ValueOf(f))
 	default:
-		return newDecodeError(value.Data, "float cannot be assigned to %s", v.Kind())
+		return parser.NewDecodeError(value.Data, "float cannot be assigned to %s", v.Kind())
 	}
 
 	return nil
@@ -818,7 +820,7 @@ func (d *decoder) unmarshalInteger(value *ast.Node, v reflect.Value) error {
 		minInt = -maxInt - 1
 	)
 
-	i, err := parseInteger(value.Data)
+	i, err := codec.DecodeInteger(value.Data)
 	if err != nil {
 		return err
 	}
@@ -907,7 +909,7 @@ func (d *decoder) unmarshalString(value *ast.Node, v reflect.Value) error {
 	case reflect.Interface:
 		v.Set(reflect.ValueOf(string(value.Data)))
 	default:
-		err = newDecodeError(d.p.Raw(value.Raw), "cannot store TOML string into a Go %s", v.Kind())
+		err = parser.NewDecodeError(d.p.Raw(value.Raw), "cannot store TOML string into a Go %s", v.Kind())
 	}
 
 	return err

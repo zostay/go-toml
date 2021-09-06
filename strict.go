@@ -3,6 +3,7 @@ package toml
 import (
 	"github.com/pelletier/go-toml/v2/internal/ast"
 	"github.com/pelletier/go-toml/v2/internal/danger"
+	"github.com/pelletier/go-toml/v2/internal/parser"
 	"github.com/pelletier/go-toml/v2/internal/tracker"
 )
 
@@ -12,7 +13,7 @@ type strict struct {
 	// Tracks the current key being processed.
 	key tracker.KeyTracker
 
-	missing []decodeError
+	missing []parser.DecodeError
 }
 
 func (s *strict) EnterTable(node *ast.Node) {
@@ -52,10 +53,10 @@ func (s *strict) MissingTable(node *ast.Node) {
 		return
 	}
 
-	s.missing = append(s.missing, decodeError{
-		highlight: keyLocation(node),
-		message:   "missing table",
-		key:       s.key.Key(),
+	s.missing = append(s.missing, parser.DecodeError{
+		Highlight: keyLocation(node),
+		Message:   "missing table",
+		Key:       s.key.Key(),
 	})
 }
 
@@ -64,10 +65,10 @@ func (s *strict) MissingField(node *ast.Node) {
 		return
 	}
 
-	s.missing = append(s.missing, decodeError{
-		highlight: keyLocation(node),
-		message:   "missing field",
-		key:       s.key.Key(),
+	s.missing = append(s.missing, parser.DecodeError{
+		Highlight: keyLocation(node),
+		Message:   "missing field",
+		Key:       s.key.Key(),
 	})
 }
 

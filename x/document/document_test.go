@@ -1,15 +1,17 @@
-package toml_test
+package document_test
 
 import (
 	"testing"
 
-	"github.com/pelletier/go-toml/v2"
+	"github.com/pelletier/go-toml/v2/x/document"
 	"github.com/stretchr/testify/require"
 )
 
-func doc(entities ...toml.Entity) toml.Document {
-	return toml.Document{
-		Root: entities,
+func doc(entities ...document.Entity) document.Document {
+	return document.Document{
+		document.Container{
+			Elements: entities,
+		},
 	}
 }
 
@@ -17,16 +19,16 @@ func TestDocument(t *testing.T) {
 	examples := []struct {
 		name string
 		toml string
-		doc  toml.Document
+		doc  document.Document
 		err  error
 	}{
 		{
 			name: "assign decimal int",
 			toml: `x = 42`,
 			doc: doc(
-				&toml.KeyValue{
+				&document.KeyValue{
 					Key:   []string{"x"},
-					Value: &toml.Integer{Value: 42},
+					Value: &document.Integer{Value: 42},
 				},
 			),
 			err: nil,
@@ -35,9 +37,9 @@ func TestDocument(t *testing.T) {
 			name: "assign string",
 			toml: `x = "hello"`,
 			doc: doc(
-				&toml.KeyValue{
+				&document.KeyValue{
 					Key: []string{"x"},
-					Value: &toml.String{
+					Value: &document.String{
 						Value: "hello",
 					},
 				},
@@ -49,13 +51,13 @@ func TestDocument(t *testing.T) {
 			toml: `a = "hello"
 b = 42`,
 			doc: doc(
-				&toml.KeyValue{
+				&document.KeyValue{
 					Key:   []string{"a"},
-					Value: &toml.String{Value: "hello"},
+					Value: &document.String{Value: "hello"},
 				},
-				&toml.KeyValue{
+				&document.KeyValue{
 					Key:   []string{"b"},
-					Value: &toml.Integer{Value: 42},
+					Value: &document.Integer{Value: 42},
 				},
 			),
 			err: nil,
@@ -64,7 +66,7 @@ b = 42`,
 			name: "table",
 			toml: `[a]`,
 			doc: doc(
-				&toml.Table{
+				&document.Table{
 					Key: []string{"a"},
 				},
 			),
@@ -75,12 +77,12 @@ b = 42`,
 			toml: `[a]
 b = 1`,
 			doc: doc(
-				&toml.Table{
+				&document.Table{
 					Key: []string{"a"},
 				},
-				&toml.KeyValue{
+				&document.KeyValue{
 					Key:   []string{"b"},
-					Value: &toml.Integer{Value: 1},
+					Value: &document.Integer{Value: 1},
 				},
 			),
 		},
@@ -91,16 +93,16 @@ b = 1`,
 b = 1
 c = 2`,
 			doc: doc(
-				&toml.Table{
+				&document.Table{
 					Key: []string{"a"},
 				},
-				&toml.KeyValue{
+				&document.KeyValue{
 					Key:   []string{"b"},
-					Value: &toml.Integer{Value: 1},
+					Value: &document.Integer{Value: 1},
 				},
-				&toml.KeyValue{
+				&document.KeyValue{
 					Key:   []string{"c"},
-					Value: &toml.Integer{Value: 2},
+					Value: &document.Integer{Value: 2},
 				},
 			),
 		},
@@ -109,12 +111,12 @@ c = 2`,
 			toml: `[a.b]
 		c = 1`,
 			doc: doc(
-				&toml.Table{
+				&document.Table{
 					Key: []string{"a", "b"},
 				},
-				&toml.KeyValue{
+				&document.KeyValue{
 					Key:   []string{"c"},
-					Value: &toml.Integer{Value: 1},
+					Value: &document.Integer{Value: 1},
 				},
 			),
 			err: nil,
@@ -123,7 +125,7 @@ c = 2`,
 
 	for _, e := range examples {
 		t.Run(e.name, func(t *testing.T) {
-			d, err := toml.Parse([]byte(e.toml))
+			d, err := document.Parse([]byte(e.toml))
 			if e.err != nil {
 				require.Equal(t, e.err, err)
 			} else {

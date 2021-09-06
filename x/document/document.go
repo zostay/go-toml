@@ -1,4 +1,4 @@
-package toml
+package document
 
 import (
 	"bytes"
@@ -7,29 +7,65 @@ import (
 
 	"github.com/bradleyjkemp/memviz"
 	"github.com/pelletier/go-toml/v2/internal/ast"
+	"github.com/pelletier/go-toml/v2/internal/codec"
+	"github.com/pelletier/go-toml/v2/internal/parser"
 )
 
 type Document struct {
-	Root []Entity
+	Container
+}
+
+func (d *Document) container() *Container {
+	return &d.Container
 }
 
 func Parse(b []byte) (Document, error) {
 	d := Document{}
 
-	p := parser{}
+	p := parser.Parser{}
 	p.Reset(b)
 	p.Comments = true
 
+	var cursor Entity = &d
+
 	for p.NextExpression() {
 		expr := p.Expression()
-		e, err := entityFromRootExpression(expr)
-		if err != nil {
-			return d, err
+
+		switch expr.Kind {
+		case ast.Table:
+			cursor = &d
+			err := docAddTable(cursor, expr)
+			if err != nil {
+				return d, err
+			}
+		case ast.ArrayTable:
+			cursor = &d
+			panic("not implemented")
+		case ast.KeyValue:
+			panic("not implemented")
+		default:
+			// TODO: add error context
+			return d, fmt.Errorf("expression of type '%s' not allowed there", expr.Kind)
 		}
-		d.Root = append(d.Root, e)
 	}
 
 	return d, p.Error()
+}
+
+func docAddTable(root Entity, expr *ast.Node) error {
+	cursor := root
+	key := expr.Key()
+	for key.Next() {
+		c, ok := cursor.(container)
+		if !ok {
+			return fmt.Errorf("tried to use a key on a non-container element")
+		}
+		parent := c.container()
+		for _, element := range parent.Elements {
+			fmt.Println("element", element)
+		}
+	}
+	return nil
 }
 
 // TODO: need more finesse than this to conserve the different kind of keys.
@@ -68,7 +104,7 @@ func entityFromRootExpression(e *ast.Node) (Entity, error) {
 func entityFromExpression(e *ast.Node) (Entity, error) {
 	switch e.Kind {
 	case ast.Integer:
-		v, err := parseInteger(e.Data)
+		v, err := codec.DecodeInteger(e.Data)
 		if err != nil {
 			return nil, err
 		}
@@ -97,14 +133,48 @@ func (d *Document) Viz() {
 type Entity interface {
 }
 
+// Container type is meant to be embedded in all TOML types that are contain
+// other elements:
+//
+// Document (root), Table.
+//
+// It allows direct access to elements order by manipulation of the Elements
+// slice.
+type Container struct {
+	Elements []Entity
+}
+
+// Private interface that needs to be implemented by structs that embed a
+// Container. Used for runtime check and dispatch.
+type container interface {
+	container() *Container
+}
+
 type Comment struct {
 	Text   string
 	Inline bool
 }
 
+type Key struct {
+	Name string
+	// TODO: merge into one.
+	Quoted  bool
+	Literal bool
+}
+
 type Table struct {
+	Container
+
 	Inline bool
 	Key    []string
+}
+
+func (t *Table) container() *Container {
+	return &t.Container
+}
+
+type keyed interface {
+	GetKey() *Key
 }
 
 type KeyValue struct {

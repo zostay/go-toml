@@ -1,4 +1,4 @@
-package toml
+package parser
 
 import (
 	"testing"
@@ -135,7 +135,7 @@ func TestParser_AST_Numbers(t *testing.T) {
 	for _, e := range examples {
 		e := e
 		t.Run(e.desc, func(t *testing.T) {
-			p := parser{}
+			p := Parser{}
 			p.Reset([]byte(`A = ` + e.input))
 			p.NextExpression()
 			err := p.Error()
@@ -335,7 +335,7 @@ func TestParser_AST(t *testing.T) {
 	for _, e := range examples {
 		e := e
 		t.Run(e.desc, func(t *testing.T) {
-			p := parser{}
+			p := Parser{}
 			p.Reset([]byte(e.input))
 			p.NextExpression()
 			err := p.Error()
@@ -350,7 +350,7 @@ func TestParser_AST(t *testing.T) {
 }
 
 func BenchmarkParseBasicStringWithUnicode(b *testing.B) {
-	p := &parser{}
+	p := &Parser{}
 	b.Run("4", func(b *testing.B) {
 		input := []byte(`"\u1234\u5678\u9ABC\u1234\u5678\u9ABC"`)
 		b.ReportAllocs()
@@ -408,7 +408,7 @@ func TestParser_AST_DateTimes(t *testing.T) {
 	for _, e := range examples {
 		e := e
 		t.Run(e.desc, func(t *testing.T) {
-			p := parser{}
+			p := Parser{}
 			p.Reset([]byte(`A = ` + e.input))
 			p.NextExpression()
 			err := p.Error()

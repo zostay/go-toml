@@ -1,4 +1,4 @@
-package toml
+package parser
 
 func scanFollows(b []byte, pattern string) bool {
 	n := len(pattern)
@@ -31,7 +31,7 @@ func scanFollowsNan(b []byte) bool {
 }
 
 func scanUnquotedKey(b []byte) ([]byte, []byte) {
-	// unquoted-key = 1*( ALPHA / DIGIT / %x2D / %x5F ) ; A-Z / a-z / 0-9 / - / _
+	// unquoted-Key = 1*( ALPHA / DIGIT / %x2D / %x5F ) ; A-Z / a-z / 0-9 / - / _
 	for i := 0; i < len(b); i++ {
 		if !isUnquotedKeyChar(b[i]) {
 			return b[:i], b[i:]
@@ -54,11 +54,11 @@ func scanLiteralString(b []byte) ([]byte, []byte, error) {
 		case '\'':
 			return b[:i+1], b[i+1:], nil
 		case '\n':
-			return nil, nil, newDecodeError(b[i:i+1], "literal strings cannot have new lines")
+			return nil, nil, NewDecodeError(b[i:i+1], "literal strings cannot have new lines")
 		}
 	}
 
-	return nil, nil, newDecodeError(b[len(b):], "unterminated literal string")
+	return nil, nil, NewDecodeError(b[len(b):], "unterminated literal string")
 }
 
 func scanMultilineLiteralString(b []byte) ([]byte, []byte, error) {
@@ -76,17 +76,17 @@ func scanMultilineLiteralString(b []byte) ([]byte, []byte, error) {
 		}
 	}
 
-	return nil, nil, newDecodeError(b[len(b):], `multiline literal string not terminated by '''`)
+	return nil, nil, NewDecodeError(b[len(b):], `multiline literal string not terminated by '''`)
 }
 
 func scanWindowsNewline(b []byte) ([]byte, []byte, error) {
 	const lenCRLF = 2
 	if len(b) < lenCRLF {
-		return nil, nil, newDecodeError(b, "windows new line expected")
+		return nil, nil, NewDecodeError(b, "windows new line expected")
 	}
 
 	if b[1] != '\n' {
-		return nil, nil, newDecodeError(b, `windows new line should be \r\n`)
+		return nil, nil, NewDecodeError(b, `windows new line should be \r\n`)
 	}
 
 	return b[:lenCRLF], b[lenCRLF:], nil
@@ -132,16 +132,16 @@ func scanBasicString(b []byte) ([]byte, []byte, error) {
 		case '"':
 			return b[:i+1], b[i+1:], nil
 		case '\n':
-			return nil, nil, newDecodeError(b[i:i+1], "basic strings cannot have new lines")
+			return nil, nil, NewDecodeError(b[i:i+1], "basic strings cannot have new lines")
 		case '\\':
 			if len(b) < i+2 {
-				return nil, nil, newDecodeError(b[i:i+1], "need a character after \\")
+				return nil, nil, NewDecodeError(b[i:i+1], "need a character after \\")
 			}
 			i++ // skip the next character
 		}
 	}
 
-	return nil, nil, newDecodeError(b[len(b):], `basic string not terminated by "`)
+	return nil, nil, NewDecodeError(b[len(b):], `basic string not terminated by "`)
 }
 
 func scanMultilineBasicString(b []byte) ([]byte, []byte, error) {
@@ -163,11 +163,11 @@ func scanMultilineBasicString(b []byte) ([]byte, []byte, error) {
 			}
 		case '\\':
 			if len(b) < i+2 {
-				return nil, nil, newDecodeError(b[len(b):], "need a character after \\")
+				return nil, nil, NewDecodeError(b[len(b):], "need a character after \\")
 			}
 			i++ // skip the next character
 		}
 	}
 
-	return nil, nil, newDecodeError(b[len(b):], `multiline basic string not terminated by """`)
+	return nil, nil, NewDecodeError(b[len(b):], `multiline basic string not terminated by """`)
 }
