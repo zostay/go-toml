@@ -7,7 +7,6 @@ import (
 
 	"github.com/bradleyjkemp/memviz"
 	"github.com/pelletier/go-toml/v2/internal/ast"
-	"github.com/pelletier/go-toml/v2/internal/codec"
 	"github.com/pelletier/go-toml/v2/internal/parser"
 )
 
@@ -30,14 +29,11 @@ func Parse(b []byte) (Document, error) {
 
 	for p.NextExpression() {
 		expr := p.Expression()
+		var err error
 
 		switch expr.Kind {
 		case ast.Table:
-			cursor = &d
-			err := docAddTable(cursor, expr)
-			if err != nil {
-				return d, err
-			}
+			cursor, err = docAddTable(&d, expr)
 		case ast.ArrayTable:
 			cursor = &d
 			panic("not implemented")
@@ -45,79 +41,52 @@ func Parse(b []byte) (Document, error) {
 			panic("not implemented")
 		default:
 			// TODO: add error context
-			return d, fmt.Errorf("expression of type '%s' not allowed there", expr.Kind)
+			err = fmt.Errorf("expression of type '%s' not allowed there", expr.Kind)
+		}
+
+		if err != nil {
+			return d, err
 		}
 	}
 
 	return d, p.Error()
 }
 
-func docAddTable(root Entity, expr *ast.Node) error {
+// Returns the new cursor or an error.
+func docAddTable(root Entity, expr *ast.Node) (Entity, error) {
 	cursor := root
 	key := expr.Key()
+
+parts:
 	for key.Next() {
 		c, ok := cursor.(container)
 		if !ok {
-			return fmt.Errorf("tried to use a key on a non-container element")
+			return nil, fmt.Errorf("tried to use a key on a non-container element")
 		}
 		parent := c.container()
+		name := string(key.Node().Data)
+
 		for _, element := range parent.Elements {
-			fmt.Println("element", element)
-		}
-	}
-	return nil
-}
-
-// TODO: need more finesse than this to conserve the different kind of keys.
-func keyIteratorToStrings(it ast.Iterator) []string {
-	key := []string{}
-	for it.Next() {
-		key = append(key, string(it.Node().Data))
-	}
-	return key
-}
-
-func entityFromRootExpression(e *ast.Node) (Entity, error) {
-	switch e.Kind {
-	case ast.Table:
-		key := keyIteratorToStrings(e.Key())
-		return &Table{
-			Key: key,
-		}, nil
-	case ast.KeyValue:
-		key := keyIteratorToStrings(e.Key())
-
-		v, err := entityFromExpression(e.Value())
-		if err != nil {
-			return nil, err
+			e, ok := element.(keyed)
+			if !ok {
+				continue
+			}
+			if e.key().Name == name {
+				cursor = element
+				continue parts
+			}
 		}
 
-		return &KeyValue{
-			Key:   key,
-			Value: v,
-		}, nil
-	default:
-		panic(fmt.Errorf("unhandled root expression kind %s", e.Kind))
-	}
-}
-
-func entityFromExpression(e *ast.Node) (Entity, error) {
-	switch e.Kind {
-	case ast.Integer:
-		v, err := codec.DecodeInteger(e.Data)
-		if err != nil {
-			return nil, err
+		newTable := Table{
+			Key: Key{
+				Name: name,
+			},
 		}
-		return &Integer{
-			Value: v,
-		}, nil
-	case ast.String:
-		return &String{
-			Value: string(e.Data),
-		}, nil
-	default:
-		panic(fmt.Errorf("unhandled expression kind %s", e.Kind))
+		parent.Elements = append(parent.Elements, newTable)
+		cursor = parent.Elements[len(parent.Elements)-1]
 	}
+
+	return cursor, nil
 }
 
 // TODO: remove me
@@ -150,11 +119,6 @@ type container interface {
 	container() *Container
 }
 
-type Comment struct {
-	Text   string
-	Inline bool
-}
-
 type Key struct {
 	Name string
 	// TODO: merge into one.
@@ -162,26 +126,39 @@ type Key struct {
 	Literal bool
 }
 
+type keyed interface {
+	key() *Key
+}
+
+type Comment struct {
+	Text   string
+	Inline bool
+}
+
 type Table struct {
 	Container
 
 	Inline bool
-	Key    []string
+	Key    Key
 }
 
 func (t *Table) container() *Container {
 	return &t.Container
 }
 
-type keyed interface {
-	GetKey() *Key
+func (t *Table) key() *Key {
+	return &t.Key
 }
 
 type KeyValue struct {
 	C *Comment
 
-	Key   []string
+	Key   Key
 	Value Entity
+}
+
+func (kv *KeyValue) key() *Key {
+	return &kv.Key
 }
 
 type String struct {

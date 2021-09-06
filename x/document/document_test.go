@@ -15,6 +15,12 @@ func doc(entities ...document.Entity) document.Document {
 	}
 }
 
+func key(k string) document.Key {
+	return document.Key{
+		Name: k,
+	}
+}
+
 func TestDocument(t *testing.T) {
 	examples := []struct {
 		name string
@@ -27,7 +33,7 @@ func TestDocument(t *testing.T) {
 			toml: `x = 42`,
 			doc: doc(
 				&document.KeyValue{
-					Key:   []string{"x"},
+					Key:   key("x"),
 					Value: &document.Integer{Value: 42},
 				},
 			),
@@ -38,7 +44,7 @@ func TestDocument(t *testing.T) {
 			toml: `x = "hello"`,
 			doc: doc(
 				&document.KeyValue{
-					Key: []string{"x"},
+					Key: key("x"),
 					Value: &document.String{
 						Value: "hello",
 					},
@@ -52,11 +58,11 @@ func TestDocument(t *testing.T) {
 b = 42`,
 			doc: doc(
 				&document.KeyValue{
-					Key:   []string{"a"},
+					Key:   key("a"),
 					Value: &document.String{Value: "hello"},
 				},
 				&document.KeyValue{
-					Key:   []string{"b"},
+					Key:   key("b"),
 					Value: &document.Integer{Value: 42},
 				},
 			),
@@ -67,7 +73,7 @@ b = 42`,
 			toml: `[a]`,
 			doc: doc(
 				&document.Table{
-					Key: []string{"a"},
+					Key: key("a"),
 				},
 			),
 			err: nil,
@@ -78,10 +84,10 @@ b = 42`,
 b = 1`,
 			doc: doc(
 				&document.Table{
-					Key: []string{"a"},
+					Key: key("a"),
 				},
 				&document.KeyValue{
-					Key:   []string{"b"},
+					Key:   key("b"),
 					Value: &document.Integer{Value: 1},
 				},
 			),
@@ -94,14 +100,14 @@ b = 1
 c = 2`,
 			doc: doc(
 				&document.Table{
-					Key: []string{"a"},
+					Key: key("a"),
 				},
 				&document.KeyValue{
-					Key:   []string{"b"},
+					Key:   key("b"),
 					Value: &document.Integer{Value: 1},
 				},
 				&document.KeyValue{
-					Key:   []string{"c"},
+					Key:   key("c"),
 					Value: &document.Integer{Value: 2},
 				},
 			),
@@ -112,10 +118,10 @@ c = 2`,
 		c = 1`,
 			doc: doc(
 				&document.Table{
-					Key: []string{"a", "b"},
+					Key: key("a"),
 				},
 				&document.KeyValue{
-					Key:   []string{"c"},
+					Key:   key("c"),
 					Value: &document.Integer{Value: 1},
 				},
 			),
