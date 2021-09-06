@@ -135,7 +135,6 @@ c = 2`,
 			if e.err != nil {
 				require.Equal(t, e.err, err)
 			} else {
-				d.Viz()
 				require.Equal(t, e.doc, d)
 			}
 		})

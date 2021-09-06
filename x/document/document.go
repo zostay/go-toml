@@ -1,11 +1,8 @@
 package document
 
 import (
-	"bytes"
 	"fmt"
-	"io/ioutil"
 
-	"github.com/bradleyjkemp/memviz"
 	"github.com/pelletier/go-toml/v2/internal/ast"
 	"github.com/pelletier/go-toml/v2/internal/parser"
 )
@@ -38,7 +35,7 @@ func Parse(b []byte) (Document, error) {
 			cursor = &d
 			panic("not implemented")
 		case ast.KeyValue:
-			panic("not implemented")
+			err = docAddKeyValue(cursor, expr)
 		default:
 			// TODO: add error context
 			err = fmt.Errorf("expression of type '%s' not allowed there", expr.Kind)
@@ -50,6 +47,11 @@ func Parse(b []byte) (Document, error) {
 	}
 
 	return d, p.Error()
+}
+
+func docAddKeyValue(parent Entity, expr *ast.Node) error {
+
+	return nil
 }
 
 // Returns the new cursor or an error.
@@ -87,16 +89,6 @@ parts:
 	}
 
 	return cursor, nil
-}
-
-// TODO: remove me
-func (d *Document) Viz() {
-	buf := &bytes.Buffer{}
-	memviz.Map(buf, d)
-	err := ioutil.WriteFile("go-toml-document-dump.dot", buf.Bytes(), 0644)
-	if err != nil {
-		panic(err)
-	}
 }
 
 type Entity interface {
