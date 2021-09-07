@@ -50,6 +50,19 @@ func Parse(b []byte) (Document, error) {
 }
 
 func docAddKeyValue(parent Entity, expr *ast.Node) error {
+	cursor := parent
+	key := expr.Key()
+
+	for key.Next() {
+		if key.IsLast() {
+			break
+		}
+		var err error
+		cursor, err = findOrCreateTable(cursor, key)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -59,36 +72,49 @@ func docAddTable(root Entity, expr *ast.Node) (Entity, error) {
 	cursor := root
 	key := expr.Key()
 
-parts:
 	for key.Next() {
-		c, ok := cursor.(container)
-		if !ok {
-			return nil, fmt.Errorf("tried to use a key on a non-container element")
+		var err error
+		cursor, err = findOrCreateTable(cursor, key)
+		if err != nil {
+			return nil, err
 		}
-		parent := c.container()
-		name := string(key.Node().Data)
+	}
 
-		for _, element := range parent.Elements {
-			e, ok := element.(keyed)
-			if !ok {
-				continue
-			}
-			if e.key().Name == name {
-				cursor = element
-				continue parts
-			}
-		}
-
-		newTable := Table{
-			Key: Key{
-				Name: name,
-			},
-		}
-		parent.Elements = append(parent.Elements, newTable)
-		cursor = parent.Elements[len(parent.Elements)-1]
+	newKV := KeyValue{
+		Key: Key{
+			Name: string(key.Node().Data),
+		},
+		Value: expr.Value(),
 	}
 
 	return cursor, nil
+}
+
+func findOrCreateTable(cursor Entity, key ast.Iterator) (Entity, error) {
+	c, ok := cursor.(container)
+	if !ok {
+		return nil, fmt.Errorf("tried to use a key on a non-container element")
+	}
+	parent := c.container()
+	name := string(key.Node().Data)
+
+	for _, element := range parent.Elements {
+		e, ok := element.(keyed)
+		if !ok {
+			continue
+		}
+		if e.key().Name == name {
+			return element, nil
+		}
+	}
+
+	newTable := Table{
+		Key: Key{
+			Name: name,
+		},
+	}
+
+	return parent.append(newTable), nil
 }
 
 type Entity interface {
@@ -103,6 +129,11 @@ type Entity interface {
 // slice.
 type Container struct {
 	Elements []Entity
+}
+
+func (c *Container) append(entity Entity) Entity {
+	c.Elements = append(c.Elements, entity)
+	return c.Elements[len(c.Elements)-1]
 }
 
 // Private interface that needs to be implemented by structs that embed a
