@@ -5,6 +5,17 @@
 // TOML documents to and from usual Go types, this package allows you to create
 // and modify the structure of a TOML document.
 //
+// Comments
+//
+// Most structural elements of a Document can have comments attached to them.
+// Those elements have a Comment field in their struct that can be manipulated
+// directly. Comments can either be above the element they decorate (default) or
+// inline. If the comment is inline, all newlines are removed from the comment's
+// text when the Document is represented as TOML. In addition, most elements can
+// be commented-out using their Commented field. Because the parser is not able
+// to detect that a given element is present inside a comment, this field is
+// only used during the encoding of the document.
+//
 // Design decisions
 //
 // Document does not represent white space. When parsing a document from bytes,
@@ -104,13 +115,39 @@ func (d Document) Valid() []error {
 	return nil
 }
 
+// Key of a Table or KeyValue. The key parts are dot-separated in their TOML
+// representation.
 type Key []KeyPart
 
+// KeyPart is an individual element in a key. If the KeyPart has been
+// constructed manually there is no guarantee that Value is can be represented
+// with Kind. Use Valid() to check.
+type KeyPart struct {
+	// The actual text of the key. Cannot contain a new line character.
+	Value string
+	// One of bare, literal, or quoted.
+	Kind KeyKind
+}
+
+// Valid returns true if the part's Value can be represented with Kind.
+func (k KeyPart) Valid() bool {
+	// TODO
+	return false
+}
+
+// KeyKind is a type to represent the kind of a key part. Kinds are mutually
+// exclusive.
 type KeyKind int
 
 const (
+	// BareKey kind does not have any decoration. It may only contain ASCII
+	// letters, ASCII digits, underscores, and dashes (A-Za-z0-9_-).
 	BareKey KeyKind = iota
+	// LiteralKey kind are decorated with single quotes ('). They can
+	// contain any character except for new lines an single quotes.
 	LiteralKey
+	// QuotedKey kind are decorated with double quotes ("). They can contain
+	// any character except for new lines.
 	QuotedKey
 )
 
@@ -122,6 +159,17 @@ func StringKey(part1 string, parts ...string) Key {
 	return Key{}
 }
 
+// StringKind is a set of flags to represent the kind of string. They can be
+// combined with bitwise-or.
+//
+//
+// Example of a multiline literal string:
+//
+//   Kind: LiteralString | MultilineString
+//
+//   // Note that the LiteralString flag always takes precedence over
+//   // BasicString.
+//   LiteralString | BasicString == LiteralString
 type StringKind int
 
 const (
@@ -129,11 +177,6 @@ const (
 	LiteralString
 	MultilineString
 )
-
-type KeyPart struct {
-	Value string
-	Kind  KeyKind
-}
 
 type KeyValue struct {
 	Comment   Comment
@@ -144,6 +187,8 @@ type KeyValue struct {
 }
 
 // Value is an interface supported by all the terminal types of a TOML document.
+// Its contents are private to avoid allowing non-supported types to make their
+// way by mistake into a TOML Document.
 type Value interface {
 	isValue()
 }
@@ -201,26 +246,44 @@ type Array struct {
 
 func (a *Array) isValue() {}
 
+// InlineTable represents an inline definition of a table. It can only be used
+// inside a KeyValue value.
 type InlineTable struct {
 	Elements []*KeyValue
 }
 
+// Table is a structural element of a TOML document. It contains a key and zero
+// or more key values.
 type Table struct {
+	// Optional comment either above the table or on the same line as the
+	// table's Key.
+	//
+	// For example:
+	//
+	//   # A comment above.
+	//   [table] # A comment inline.
+	//   ...
 	Comment   Comment
 	Commented bool
-	Array     bool
+	// Whether the table is actually an array table (key in double square
+	// brackets).
+	Array bool
 
 	Key      Key
 	Elements []*KeyValue
 }
 
-// Comment is usually a member of an element of the TOML document.
+// Comment is usually a member of an element of the TOML document. Comments can
+// be either above or inline with the element they decorate.
 type Comment struct {
-	// Can be multiline. An empty value means no comment.
-	Value string
-	// Inline puts the comment on the same line as the element it annotates
-	// (by default comments are above their element).
+	// Can be contain new line characters. An empty value means no comment.
+	Value  string
 	Inline bool
+}
+
+// Zero indicates whether a comment has any value.
+func (c Comment) Zero() bool {
+	return c.Value == ""
 }
 
 // Notes / TODOs:
@@ -230,3 +293,8 @@ type Comment struct {
 // - Use *To* functions to convert to/from standard types, returning errors if
 //   needed.
 // - How to discover the structure?
+// - How to represent array values comments?
+//    [ # one
+//      1, # two
+//      2  # three
+//    ] # four

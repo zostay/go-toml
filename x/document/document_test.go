@@ -6,6 +6,10 @@ import (
 	"github.com/pelletier/go-toml/v2/x/document"
 )
 
+func ExampleDocument_walk() {
+	// TODO (https://golang.org/src/go/ast/walk.go)
+}
+
 func ExampleDocument_getAt() {
 	doc := document.Document{
 		KeyValues: []*document.KeyValue{
