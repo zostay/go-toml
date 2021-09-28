@@ -239,12 +239,19 @@ type Array struct {
 	Comment   Comment
 	Commented bool
 
-	// Should each element of the array be on its own line.
+	// Should each element of the array be on its own line. If false,
+	// Comments / Commented attributes of the elements are ignored.
 	Multiline bool
-	Elements  []Value
+	Elements  []ArrayElement
 }
 
 func (a *Array) isValue() {}
+
+type ArrayElement struct {
+	Comment   Comment
+	Commented bool
+	Value     Value
+}
 
 // InlineTable represents an inline definition of a table. It can only be used
 // inside a KeyValue value.
@@ -286,15 +293,16 @@ func (c Comment) Zero() bool {
 	return c.Value == ""
 }
 
+type Position struct {
+	Row    int
+	Column int
+	Byte   int
+}
+
+type Range struct {
+	Start Position
+	Stop  Position
+}
+
 // Notes / TODOs:
-// - Array Table may be difficult to manipulate?
-// - Use *As* functions to easily write literals (and panic if construction is
-// - incorrect).
-// - Use *To* functions to convert to/from standard types, returning errors if
-//   needed.
 // - How to discover the structure?
-// - How to represent array values comments?
-//    [ # one
-//      1, # two
-//      2  # three
-//    ] # four
